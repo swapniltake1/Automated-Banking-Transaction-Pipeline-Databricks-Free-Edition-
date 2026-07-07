@@ -115,7 +115,7 @@ Or execute **11_Master_Pipeline** to run the complete workflow.
 
 ## Sample Data
 
-Reference datasets: - Customers - Accounts - Branches - Banks - Account
+Mastrdata datasets: - Customers - Accounts - Branches - Banks - Account
 Types - Transaction Types - Currencies
 
 Transaction sources: - ATM - UPI - NEFT - RTGS - CARD -
