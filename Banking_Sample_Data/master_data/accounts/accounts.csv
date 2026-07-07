@@ -1,0 +1,11 @@
+account_number,customer_id,account_type,branch
+ACC10000,CUST1000,Savings,Pune
+ACC10001,CUST1001,Current,Mumbai
+ACC10002,CUST1002,Savings,Nashik
+ACC10003,CUST1003,Current,Nagpur
+ACC10004,CUST1004,Savings,Pune
+ACC10005,CUST1005,Current,Mumbai
+ACC10006,CUST1006,Savings,Delhi
+ACC10007,CUST1007,Current,Chennai
+ACC10008,CUST1008,Savings,Hyderabad
+ACC10009,CUST1009,Current,Bengaluru
