@@ -1,4 +1,8 @@
 # Databricks notebook source
+# /// script
+# [tool.databricks.environment]
+# environment_version = "5"
+# ///
 # DBTITLE 1,Banking Test Data Generator
 # MAGIC %md
 # MAGIC # Banking Test Data Generator
@@ -23,8 +27,8 @@
 # COMMAND ----------
 
 # DBTITLE 1,Import Required Libraries
-from pyspark.sql.functions import *
-from pyspark.sql.types import *
+from pyspark.sql import functions as F
+from pyspark.sql import types as T
 from datetime import datetime, timedelta
 import random
 import pandas as pd
@@ -34,6 +38,8 @@ print("✅ Libraries imported successfully")
 # COMMAND ----------
 
 # DBTITLE 1,TestDataGenerator Class - Main Implementation
+from builtins import round as py_round
+
 class BankingTestDataGenerator:
     """
     Comprehensive Test Data Generator for Banking Transaction Pipeline
@@ -59,6 +65,7 @@ class BankingTestDataGenerator:
         self.valid_transaction_types = valid_transaction_types
         self.incoming_path = f"{base_path}/incoming"
         self.master_data_path = f"{base_path}/master_data"
+        self.spark = spark  # Store spark session for file operations
         
         # Define data ranges
         self.currencies = ["INR", "USD", "EUR", "GBP"]
@@ -114,7 +121,7 @@ class BankingTestDataGenerator:
                 'customer_id': self._generate_customer_id(),
                 'account_number': self._generate_account_number(),
                 'transaction_type': random.choice(self.valid_transaction_types),
-                'amount': round(random.uniform(100, 100000), 2),
+                'amount': py_round(random.uniform(100, 100000), 2),
                 'currency': random.choice(self.currencies) if source_system in ['CARD', 'INTERNET_BANKING'] else 'INR',
                 'branch': self._generate_branch_code(),
                 'transaction_timestamp': self._random_timestamp(days_back)
@@ -202,11 +209,11 @@ class BankingTestDataGenerator:
                 'account_type': random.choice(self.account_types),
                 'branch_code': self._generate_branch_code(),
                 'opening_date': (datetime.now() - timedelta(days=random.randint(1, 1825))).date(),
-                'current_balance': round(random.uniform(1000, 500000), 2),
+                'current_balance': py_round(random.uniform(1000, 500000), 2),
                 'currency': 'INR',
                 'status': random.choice(['ACTIVE', 'INACTIVE', 'DORMANT', 'CLOSED']),
-                'overdraft_limit': round(random.uniform(0, 50000), 2) if random.random() > 0.7 else 0.0,
-                'interest_rate': round(random.uniform(3.5, 7.5), 2),
+                'overdraft_limit': py_round(random.uniform(0, 50000), 2) if random.random() > 0.7 else 0.0,
+                'interest_rate': py_round(random.uniform(3.5, 7.5), 2),
                 'last_transaction_date': (datetime.now() - timedelta(days=random.randint(0, 90))).date()
             }
             accounts.append(account)
@@ -270,7 +277,7 @@ class BankingTestDataGenerator(BankingTestDataGenerator):
         """
         try:
             # Convert pandas to Spark DataFrame
-            spark_df = spark.createDataFrame(df)
+            spark_df = self.spark.createDataFrame(df)
             
             # Save as CSV first (Spark doesn't directly support Excel)
             temp_csv_path = f"{file_path}.csv"
@@ -281,7 +288,7 @@ class BankingTestDataGenerator(BankingTestDataGenerator):
             csv_file = [f.path for f in files if f.path.endswith('.csv')][0]
             
             # Read CSV and save as Excel using pandas
-            csv_content = spark.read.csv(csv_file, header=True, inferSchema=True).toPandas()
+            csv_content = self.spark.read.csv(csv_file, header=True, inferSchema=True).toPandas()
             
             # Save to Excel
             excel_path = f"{file_path}.xlsx"
@@ -300,7 +307,7 @@ class BankingTestDataGenerator(BankingTestDataGenerator):
             print(f"❌ Error saving Excel file: {str(e)}")
             # Fallback to CSV if Excel fails
             csv_path = f"{file_path}.csv"
-            spark_df = spark.createDataFrame(df)
+            spark_df = self.spark.createDataFrame(df)
             spark_df.coalesce(1).write.mode("overwrite").option("header", "true").csv(csv_path)
             print(f"⚠️ Saved as CSV instead: {csv_path}")
             return csv_path
@@ -314,7 +321,7 @@ class BankingTestDataGenerator(BankingTestDataGenerator):
             file_path: Full file path (without extension)
         """
         try:
-            spark_df = spark.createDataFrame(df)
+            spark_df = self.spark.createDataFrame(df)
             csv_path = f"{file_path}.csv"
             spark_df.coalesce(1).write.mode("overwrite").option("header", "true").csv(csv_path)
             print(f"✅ Saved CSV file: {csv_path}")
@@ -499,7 +506,8 @@ for file_info in transaction_files:
 
 print(f"\n{'='*80}")
 print(f"Total Files Generated: {len(transaction_files)}")
-print(f"Total Records: {sum(f['record_count'] for f in transaction_files):,}")
+from builtins import sum as py_sum
+print(f"Total Records: {py_sum(f['record_count'] for f in transaction_files):,}")
 print("="*80)
 
 # COMMAND ----------
@@ -524,7 +532,8 @@ for file_info in master_files:
 
 print(f"\n{'='*80}")
 print(f"Total Master Files: {len(master_files)}")
-print(f"Total Records: {sum(f['count'] for f in master_files):,}")
+from builtins import sum as py_sum
+print(f"Total Records: {py_sum(f['count'] for f in master_files):,}")
 print("="*80)
 
 # COMMAND ----------
@@ -601,58 +610,9 @@ print(branches_df['branch_type'].value_counts())
 
 # COMMAND ----------
 
-# DBTITLE 1,Quick Commands
-# MAGIC %md
-# MAGIC ## Quick Commands Reference
-# MAGIC
-# MAGIC ### Generate Everything (Complete Test Data Setup)
-# MAGIC
-# MAGIC ```python
-# MAGIC # Initialize generator
-# MAGIC generator = BankingTestDataGenerator(
-# MAGIC     base_path=BASE_PATH,
-# MAGIC     source_systems=SOURCE_SYSTEMS,
-# MAGIC     valid_transaction_types=VALID_TRANSACTION_TYPES
-# MAGIC )
-# MAGIC
-# MAGIC # Generate all transaction files (CSV format)
-# MAGIC transaction_files = generator.generate_all_transaction_files(
-# MAGIC     records_per_source=1000,
-# MAGIC     format='csv'
-# MAGIC )
-# MAGIC
-# MAGIC # Generate all master data files
-# MAGIC master_files = generator.generate_all_master_data(format='csv')
-# MAGIC
-# MAGIC print(f"\n✅ Complete! Generated {len(transaction_files)} transaction files and {len(master_files)} master data files")
-# MAGIC ```
-# MAGIC
-# MAGIC ### Generate Single Source System
-# MAGIC
-# MAGIC ```python
-# MAGIC # For specific source system
-# MAGIC df = generator.generate_transactions('UPI', num_records=500)
-# MAGIC file_path = f"{generator.incoming_path}/UPI/upi_test_data"
-# MAGIC generator.save_to_csv(df, file_path)
-# MAGIC ```
-# MAGIC
-# MAGIC ### Format Options
-# MAGIC
-# MAGIC * **CSV Format** (Recommended): `format='csv'`
-# MAGIC * **Excel Format**: `format='excel'` (may fallback to CSV if Excel writer fails)
-# MAGIC
-# MAGIC ### Customization Options
-# MAGIC
-# MAGIC * `records_per_source`: Number of transactions per source system (default: 1000)
-# MAGIC * `num_records`: Number of records for master data (customers: 500, accounts: 800, branches: 100)
-# MAGIC * `days_back`: Number of days back for transaction timestamps (default: 30)
-# MAGIC * `format`: File format - 'csv' or 'excel'
-
-# COMMAND ----------
-
 # DBTITLE 1,One-Click Generate All Test Data
 # MAGIC %md
-# MAGIC ## 🚀 One-Click: Generate Complete Test Data
+# MAGIC ## One-Click: Generate Complete Test Data
 # MAGIC
 # MAGIC Run this cell to generate all test data in one go!
 
@@ -739,51 +699,3 @@ def generate_complete_test_data(records_per_source=500, format='csv'):
 
 # Example: Uncomment to run
 # result = generate_complete_test_data(records_per_source=500, format='csv')
-
-# COMMAND ----------
-
-# DBTITLE 1,Verification and Next Steps
-# MAGIC %md
-# MAGIC ## ✅ Verification & Next Steps
-# MAGIC
-# MAGIC ### Verify Generated Files
-# MAGIC
-# MAGIC ```python
-# MAGIC # Check incoming folder
-# MAGIC for source in SOURCE_SYSTEMS:
-# MAGIC     path = f"{BASE_PATH}/incoming/{source}"
-# MAGIC     try:
-# MAGIC         files = dbutils.fs.ls(path)
-# MAGIC         print(f"{source:20} - {len(files)} file(s)")
-# MAGIC     except:
-# MAGIC         print(f"{source:20} - No files")
-# MAGIC
-# MAGIC # Check master data folder
-# MAGIC for data_type in ['customers', 'accounts', 'branches']:
-# MAGIC     path = f"{BASE_PATH}/master_data/{data_type}"
-# MAGIC     try:
-# MAGIC         files = dbutils.fs.ls(path)
-# MAGIC         print(f"{data_type:20} - {len(files)} file(s)")
-# MAGIC     except:
-# MAGIC         print(f"{data_type:20} - No files")
-# MAGIC ```
-# MAGIC
-# MAGIC ### Run Your Pipeline
-# MAGIC
-# MAGIC After generating test data:
-# MAGIC
-# MAGIC 1. **Run 03_Ingestion** notebook to ingest transaction files into Bronze layer
-# MAGIC 2. **Run 02_Master_Data_Load** to load customer, account, and branch data
-# MAGIC 3. **Run 04_Data_Validation** to validate and cleanse data
-# MAGIC 4. **Run remaining notebooks** to complete the pipeline
-# MAGIC
-# MAGIC ### Tips
-# MAGIC
-# MAGIC * **CSV Format** is recommended for better compatibility with Spark Auto Loader
-# MAGIC * Start with **smaller datasets** (100-500 records) for testing
-# MAGIC * Increase to **1000+ records** for performance testing
-# MAGIC * Monitor execution time and adjust batch sizes accordingly
-
-# COMMAND ----------
-
-
